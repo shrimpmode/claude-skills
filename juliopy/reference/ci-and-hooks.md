@@ -58,8 +58,13 @@ repos:
     hooks:
       - id: mypy
         additional_dependencies: []  # add django-stubs here if using Django
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: <gitleaks-tag>
+    hooks:
+      - id: gitleaks
 ```
 
-Look up each `rev` from the repo's own tags/releases before writing the file — a stale or invented tag will fail `pre-commit install`/`autoupdate`.
+Look up each `rev` from the repo's own tags/releases before writing the file — a stale or invented tag will fail `pre-commit install`/`autoupdate`. `gitleaks` blocks a commit that contains an API key, token, or other credential pattern — it's what catches a `SECRET_KEY` or `DATABASE_URL` accidentally pasted into code instead of `.env`.
 
 After writing both files: `uv run pre-commit install` (registers the git hook) and `uv run pre-commit run --all-files` (verifies it's clean on a fresh scaffold).

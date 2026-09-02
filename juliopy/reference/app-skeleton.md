@@ -13,13 +13,16 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str
+    secret_key: str
     debug: bool = False
 
 
 settings = Settings()
 ```
 
-`.env` / `.env.example` supply `DATABASE_URL=postgresql://<user>:<password>@db:5432/<db>` plus `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` (consumed by the `db` compose service) and `DEBUG`.
+`.env` supplies real values for `DATABASE_URL=postgresql://<user>:<password>@db:5432/<db>`, `SECRET_KEY` (generate with `python -c "import secrets; print(secrets.token_urlsafe(50))"`, never a hardcoded/placeholder string), `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` (consumed by the `db` compose service), and `DEBUG`. `.env` is gitignored (SKILL.md step 4) and never committed.
+
+`.env.example` mirrors the same keys but with dummy placeholders (`SECRET_KEY=changeme`, `POSTGRES_PASSWORD=changeme`) — it exists so a new developer knows what to set, and is safe to commit precisely because it holds no real secrets.
 
 ## FastAPI
 
@@ -62,6 +65,7 @@ import dj_database_url
 from config.settings_env import settings
 
 DATABASES = {"default": dj_database_url.parse(settings.database_url)}
+SECRET_KEY = settings.secret_key
 DEBUG = settings.debug
 ```
 

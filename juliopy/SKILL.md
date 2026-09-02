@@ -35,7 +35,7 @@ Look each of these up before writing any file; do not reuse a version number fro
 
 ### 4. Scaffold Docker
 
-Read `reference/dockerfile.md` and apply its multi-stage, non-root, uv-based `Dockerfile`, `docker-compose.yml` (app + Postgres, healthchecks, named volume), and `.dockerignore`, substituting the versions from step 2.
+Read `reference/dockerfile.md` and apply its multi-stage, non-root, uv-based `Dockerfile`, `docker-compose.yml` (app + Postgres, healthchecks, named volume), and `.dockerignore`, substituting the versions from step 2. Also add `.env` to `.gitignore` (create the file if `uv init` didn't) — the app skeleton in step 7 writes real secrets into `.env`, and it must never be committed.
 
 ### 5. Configure tooling
 
@@ -43,11 +43,13 @@ Read `reference/tooling.md` and add its `[tool.ruff]`, `[tool.mypy]`, and `[tool
 
 ### 6. Wire CI and pre-commit
 
-Read `reference/ci-and-hooks.md` and write `.github/workflows/ci.yml` and `.pre-commit-config.yaml`. Then run `uv run pre-commit install`.
+Read `reference/ci-and-hooks.md` and write `.github/workflows/ci.yml` and `.pre-commit-config.yaml`, including the `gitleaks` secret-scanning hook. Then run `uv run pre-commit install`.
 
 ### 7. Build the app skeleton
 
 Read `reference/app-skeleton.md` for the chosen framework: a `pydantic-settings` `Settings` class reading env/`.env`, DB session/connection wiring, and `GET /health` (liveness, no I/O) + `GET /ready` (checks Postgres). Point the Docker healthcheck at `/health`.
+
+**Secrets management:** generate a strong random value for `SECRET_KEY`/Django's `SECRET_KEY` (e.g. `python -c "import secrets; print(secrets.token_urlsafe(50))"`) and any other credential — never hardcode one or leave a placeholder string in code. Write real values only to `.env` (gitignored, step 4); `.env.example` gets the same keys with dummy/empty placeholders so it's safe to commit. Never log settings objects or request bodies that might contain secrets.
 
 ### 8. Verify — every item, not just the first
 
