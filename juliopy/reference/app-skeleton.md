@@ -17,10 +17,10 @@ class Settings(BaseSettings):
     debug: bool = False
 
 
-settings = Settings()
+settings = Settings()  # type: ignore[call-arg]  # values come from .env / environment — see tooling.md
 ```
 
-`.env` supplies real values for `DATABASE_URL=postgresql://<user>:<password>@db:5432/<db>`, `SECRET_KEY` (generate with `python -c "import secrets; print(secrets.token_urlsafe(50))"`, never a hardcoded/placeholder string), `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` (consumed by the `db` compose service), and `DEBUG`. `.env` is gitignored (SKILL.md step 4) and never committed.
+`.env` supplies real values for `DATABASE_URL=postgresql://<user>:<password>@db:5432/<db>`, `SECRET_KEY` (generate with `python -c "import secrets; print(secrets.token_urlsafe(50))"`, never a hardcoded/placeholder string), `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` (consumed by the `db` compose service), `DEBUG`, and for Django, `ALLOWED_HOSTS` (see below). `.env` is gitignored (SKILL.md step 4) and never committed.
 
 `.env.example` mirrors the same keys but with dummy placeholders (`SECRET_KEY=changeme`, `POSTGRES_PASSWORD=changeme`) — it exists so a new developer knows what to set, and is safe to commit precisely because it holds no real secrets.
 
@@ -67,19 +67,22 @@ from config.settings_env import settings
 DATABASES = {"default": dj_database_url.parse(settings.database_url)}
 SECRET_KEY = settings.secret_key
 DEBUG = settings.debug
+ALLOWED_HOSTS = [h.strip() for h in settings.allowed_hosts.split(",") if h.strip()]
 ```
+
+Add `allowed_hosts: str = "localhost,127.0.0.1"` to `Settings` (`config/settings_env.py`) for this. Never leave Django's `ALLOWED_HOSTS` hardcoded to `[]` when `DEBUG=False` (the framework default, and what a naive `if DEBUG else []` produces) — every request 400s with `DisallowedHost`, including `/health`/`/ready` themselves, which is usually how this gets discovered: step 8's verification looks like it should pass and doesn't. Read it from config so real hostnames can be set per environment.
 
 ```python
 # health/views.py
 from django.db import connection
-from django.http import JsonResponse
+from django.http import HttpRequest, JsonResponse
 
 
-def health(request):
+def health(request: HttpRequest) -> JsonResponse:
     return JsonResponse({"status": "ok"})
 
 
-def ready(request):
+def ready(request: HttpRequest) -> JsonResponse:
     try:
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")

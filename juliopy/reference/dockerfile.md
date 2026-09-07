@@ -20,9 +20,10 @@ COPY . .
 RUN uv sync --frozen --no-dev
 
 FROM python:<python>-slim
-RUN groupadd --system app && useradd --system --gid app app
+RUN groupadd --system app && useradd --system --gid app --home /app app
 WORKDIR /app
 COPY --from=builder --chown=app:app /app /app
+RUN chown app:app /app
 ENV PATH="/app/.venv/bin:$PATH"
 USER app
 
@@ -39,6 +40,8 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 Notes:
 - `curl` must be installed in the final stage (`apt-get install -y --no-install-recommends curl` before dropping to non-root) for the `HEALTHCHECK` to work — or check via a Python one-liner instead if you'd rather not add curl.
 - `--no-install-project` on the first `uv sync` installs only dependencies, keeping that layer cacheable independent of app-code changes.
+- `useradd --home /app app` gives the non-root user a writable `$HOME`. Without it, servers that write runtime state there (gunicorn's control socket, various caches) fail with `Permission denied` errors in the logs even though the container looks "up" and the healthcheck can still pass — don't mistake a clean `docker compose up` for a clean log.
+- `COPY --chown=app:app` only chowns the files it copies in; the `/app` directory entry itself was created by `WORKDIR` while still root, and stays root-owned (`drwxr-xr-x root root`) unless you chown it explicitly. The `RUN chown app:app /app` line above is required for that reason, not redundant with `--chown`.
 
 ## docker-compose.yml
 
@@ -51,7 +54,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql  # postgres 18+; use /var/lib/postgresql/data instead on postgres <18
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -70,6 +73,8 @@ services:
 volumes:
   pgdata:
 ```
+
+Postgres 18 changed the image's internal layout to be `pg_ctlcluster`-compatible and expects a single mount at `/var/lib/postgresql` (it then places versioned data in a subdirectory); mounting the old `/var/lib/postgresql/data` path on a 18+ image fails fast on startup with a fatal "these Docker images are configured to store database data in a format which is compatible with pg_ctlcluster" error. Match the mount to the major version resolved in SKILL.md step 2 — don't default to the old path from habit.
 
 ## .dockerignore
 

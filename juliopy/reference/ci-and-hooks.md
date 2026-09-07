@@ -57,7 +57,7 @@ repos:
     rev: <mirrors-mypy-tag>
     hooks:
       - id: mypy
-        additional_dependencies: []  # add django-stubs here if using Django
+        additional_dependencies: []  # see below — Django needs far more than django-stubs here
 
   - repo: https://github.com/gitleaks/gitleaks
     rev: <gitleaks-tag>
@@ -66,5 +66,22 @@ repos:
 ```
 
 Look up each `rev` from the repo's own tags/releases before writing the file — a stale or invented tag will fail `pre-commit install`/`autoupdate`. `gitleaks` blocks a commit that contains an API key, token, or other credential pattern — it's what catches a `SECRET_KEY` or `DATABASE_URL` accidentally pasted into code instead of `.env`.
+
+### The mypy hook's `additional_dependencies` needs runtime deps, not just stubs
+
+The mypy pre-commit hook runs in its own throwaway virtualenv, completely separate from `uv.lock` — `additional_dependencies` is the *only* thing installed into it. mypy still has to *import* your settings module to type-check the project (Django's mypy plugin literally calls `django.apps.populate()`), so every package that import chain touches must be listed here too, pinned to the same version as `pyproject.toml` — not only the `*-stubs` package. For a typical Django scaffold from this skill, that's:
+
+```yaml
+        additional_dependencies:
+          - "django==<django-version>"
+          - "django-stubs==<django-stubs-version>"
+          - "pydantic-settings==<pydantic-settings-version>"
+          - "dj-database-url==<dj-database-url-version>"
+          - "psycopg[binary]==<psycopg-version>"
+          - "pytest==<pytest-version>"          # if tests/ is inside mypy's checked paths
+          - "pytest-django==<pytest-django-version>"
+```
+
+Skipping any of these produces failures that look unrelated to your code — e.g. `django.core.exceptions.ImproperlyConfigured: Error loading psycopg2 or psycopg module` (psycopg missing) or `error: INTERNAL ERROR ... Error constructing plugin instance of NewSemanalDjangoPlugin` (any of the above missing, since Django fails to fully initialize). If you hit either, run the hook's own mypy binary directly with `--show-traceback` to see which import in the chain actually failed, rather than guessing.
 
 After writing both files: `uv run pre-commit install` (registers the git hook) and `uv run pre-commit run --all-files` (verifies it's clean on a fresh scaffold).
