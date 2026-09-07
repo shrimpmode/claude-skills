@@ -15,6 +15,7 @@ applies there; that's also why `reference/dockerfile.md`'s base compose file tar
 ```yaml
 services:
   app:
+    image: <project>-app:dev
     build:
       target: dev
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -27,8 +28,16 @@ services:
       - /app/.venv
 ```
 
-Two things that are easy to get wrong here:
+Three things that are easy to get wrong here:
 
+- **`image: <project>-app:dev`** (substitute the real project name) is not optional. Compose
+  otherwise builds every target for a given service to the *same* default image name/tag
+  (`<project>-<service>`), so building `production` (e.g. from CI, or a plain `docker compose
+  -f docker-compose.yml build`) and then running `docker compose run app ...` without `--build`
+  silently reuses whichever image was built last — dev tooling like `uv`/`pytest` then appears
+  to be "missing" from a container that's actually just running the production image under a
+  dev config. Giving the dev build its own tag makes the two images impossible to confuse, and
+  Compose still rebuilds it automatically for `up`/`run` when the Dockerfile or context changes.
 - **`target: dev`** points the build at the `dev` stage from `reference/dockerfile.md` (dev
   tools installed, no non-root user, no `HEALTHCHECK`) instead of `production`.
 - **The `/app/.venv` line is not redundant with `.:/app`.** Bind-mounting the whole project
