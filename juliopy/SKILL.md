@@ -18,22 +18,27 @@ Ask only if genuinely ambiguous; otherwise decide from the shape of the ask and 
 - **Django** — needs an admin panel, built-in auth/ORM/migrations, a full-featured monolith, or the user says "batteries included."
 - **FastAPI** — a lean API/microservice, async-heavy, OpenAPI/schema-first, or the user says "just an API."
 
+If FastAPI, also decide the internal architecture — again from the shape of the ask, not by default:
+
+- **Layered/scalable (default for anything real)** — more than one resource/domain, expected to grow, or the user says "scalable"/"production." Use `reference/fastapi-scalable-architecture.md`'s package-by-feature structure (router/service/repository/schema per module, async SQLAlchemy, Alembic) instead of the flat skeleton in step 8.
+- **Flat single-module** — a genuine one- or two-endpoint prototype/throwaway. Use `reference/app-skeleton.md`'s `app/main.py` as-is; imposing module boundaries on something this small is pure overhead.
+
 ### 2. Resolve latest stable versions — do not guess
 
 Look each of these up before writing any file; do not reuse a version number from memory. Use the PyPI JSON API (`https://pypi.org/pypi/<pkg>/json`, field `info.version`) for Python packages, and Docker Hub tags for images:
 
 - **Python** (python.org/downloads or `python` Docker Hub tags)
 - **uv**
-- **Framework**: Django or FastAPI, plus its DB driver (`psycopg[binary]` for Django/sync, `asyncpg` for FastAPI/async) and ASGI/WSGI server (`gunicorn`, `uvicorn`). Django also needs `dj-database-url` (parses `DATABASE_URL` into `DATABASES`) and `django-stubs` (mypy plugin, see step 7).
+- **Framework**: Django or FastAPI, plus its DB driver (`psycopg[binary]` for Django/sync, `asyncpg` for FastAPI/async) and ASGI/WSGI server (`gunicorn`, `uvicorn`). Django also needs `dj-database-url` (parses `DATABASE_URL` into `DATABASES`) and `django-stubs` (mypy plugin, see step 7). FastAPI on the layered/scalable path also needs `sqlalchemy` and `alembic`.
 - **Postgres** (Docker Hub `postgres` tags — pin an explicit version, never `latest`; note the major version, step 4's volume mount depends on it)
-- **ruff, mypy, pytest** (+ `pytest-asyncio` for FastAPI, `pytest-django` for Django — pytest can't run Django tests/fixtures without it), **pydantic-settings**
+- **ruff, mypy, pytest** (+ `pytest-asyncio` and, for the layered/scalable path, `httpx` for FastAPI; `pytest-django` for Django — pytest can't run Django tests/fixtures without it), **pydantic-settings**
 - **pre-commit**, and the exact tags of the `astral-sh/ruff-pre-commit` and `pre-commit/mirrors-mypy` repos
 
 ### 3. Initialize with uv
 
 Use `uv init --app --no-package .` (not bare `uv init`) — the default creates a `src/`-layout installable package (`[build-system]`, `[project.scripts]`), which doesn't fit a Django/FastAPI service. `--app --no-package` gives a flat layout with no build backend.
 
-Then `uv add` the framework/driver/server packages (+ `dj-database-url` for Django) and `uv add --dev ruff mypy pytest pre-commit` (+ `pytest-asyncio` for FastAPI, or `django-stubs` + `pytest-django` for Django), all pinned to the versions from step 2. This produces `pyproject.toml` and `uv.lock`.
+Then `uv add` the framework/driver/server packages (+ `dj-database-url` for Django, + `sqlalchemy` and `alembic` for FastAPI's layered/scalable path) and `uv add --dev ruff mypy pytest pre-commit` (+ `pytest-asyncio` for FastAPI, plus `httpx` on the layered/scalable path; or `django-stubs` + `pytest-django` for Django), all pinned to the versions from step 2. This produces `pyproject.toml` and `uv.lock`.
 
 ### 4. Scaffold Docker
 
@@ -61,6 +66,8 @@ The mypy pre-commit hook runs in its own isolated virtualenv, separate from `uv.
 
 Read `reference/app-skeleton.md` for the chosen framework: a `pydantic-settings` `Settings` class reading env/`.env`, DB session/connection wiring, and `GET /health` (liveness, no I/O) + `GET /ready` (checks Postgres). Point the Docker healthcheck at `/health`.
 
+FastAPI on the layered/scalable path (step 1): read `reference/fastapi-scalable-architecture.md` instead of using `reference/app-skeleton.md`'s FastAPI section directly — it replaces the single `app/main.py` with the package-by-feature layout (router/service/repository/schema per module, async SQLAlchemy engine, Alembic migrations), and its Makefile/`docker-compose` notes supersede the "FastAPI has no migration tool" line in `reference/dev-environment.md`.
+
 For Django, run `uv run ruff check --fix . && uv run ruff format .` right after `django-admin startproject`/`startapp` — the generated boilerplate itself (single-quoted strings, unused imports in the stub `admin.py`/`models.py`/`tests.py`) fails `ruff check`/`ruff format` as shipped. Do this before layering in your own code, so step 10 isn't surprised by pre-existing violations.
 
 **Secrets management:** generate a strong random value for `SECRET_KEY`/Django's `SECRET_KEY` (e.g. `python -c "import secrets; print(secrets.token_urlsafe(50))"`) and any other credential — never hardcode one or leave a placeholder string in code. Write real values only to `.env` (gitignored, step 4); `.env.example` gets the same keys with dummy/empty placeholders so it's safe to commit. Never log settings objects or request bodies that might contain secrets.
@@ -80,6 +87,7 @@ Read `reference/readme-template.md` and write a real `README.md`: prerequisites,
 - `uv run mypy .`
 - `uv run pytest`
 - `uv run pre-commit run --all-files`
+- FastAPI layered/scalable path only: `make migrate` (or `docker compose exec app alembic upgrade head`) applies cleanly on a fresh DB, then `alembic revision --autogenerate -m check` produces an **empty** migration — a non-empty one means some module's model isn't imported in `alembic/env.py` and its table was never actually created
 
 Fix and re-run until every check above passes before calling the scaffold done.
 

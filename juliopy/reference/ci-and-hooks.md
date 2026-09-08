@@ -84,4 +84,14 @@ The mypy pre-commit hook runs in its own throwaway virtualenv, completely separa
 
 Skipping any of these produces failures that look unrelated to your code — e.g. `django.core.exceptions.ImproperlyConfigured: Error loading psycopg2 or psycopg module` (psycopg missing) or `error: INTERNAL ERROR ... Error constructing plugin instance of NewSemanalDjangoPlugin` (any of the above missing, since Django fails to fully initialize). If you hit either, run the hook's own mypy binary directly with `--show-traceback` to see which import in the chain actually failed, rather than guessing.
 
+FastAPI on the layered/scalable path (`reference/fastapi-scalable-architecture.md`) doesn't need a plugin, but every module imports `fastapi`, `sqlalchemy`, and `pydantic` directly — without them in `additional_dependencies` too, mypy reports `Cannot find implementation or library stub` for each one instead of checking your code:
+
+```yaml
+        additional_dependencies:
+          - "fastapi==<fastapi-version>"
+          - "sqlalchemy==<sqlalchemy-version>"
+          - "pydantic-settings==<pydantic-settings-version>"
+          - "asyncpg==<asyncpg-version>"
+```
+
 After writing both files: `uv run pre-commit install` (registers the git hook) and `uv run pre-commit run --all-files` (verifies it's clean on a fresh scaffold).
