@@ -62,9 +62,11 @@ flaky in a specific environment.
 
 Optional but recommended — gives a consistent, memorable set of commands regardless of
 framework, instead of everyone remembering their own `docker compose exec` incantations. Adjust
-the Django-only targets (`migrate`, `makemigrations`, `shell`) out if scaffolding FastAPI —
-FastAPI has no built-in migration tool; if the project needs one, that's a separate decision
-(e.g. Alembic) outside this skill's scope.
+the Django-only targets (`migrate`, `makemigrations`, `shell`) out if scaffolding FastAPI's flat
+skeleton (`reference/app-skeleton.md`) — that path has no migration tool. FastAPI's
+layered/scalable path (`reference/fastapi-scalable-architecture.md`) does add its own
+`migrate`/`makemigrations` targets, backed by Alembic instead of Django's `manage.py`; use that
+file's versions of those targets instead of dropping them.
 
 ```makefile
 .PHONY: up down build logs shell migrate makemigrations test lint fmt precommit
