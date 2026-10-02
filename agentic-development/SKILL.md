@@ -109,6 +109,8 @@ Before finishing, inspect the complete diff for:
 
 For significant changes, request an independent review agent when available.
 
+Run the `owasp-check` skill on the diff whenever the change touches an entry point, authentication or authorization, user input, data access, secrets or configuration, or dependencies. Resolve every Critical and High finding before presenting the result, and list Medium, Low, and Plausible findings under remaining risks. For a change that touches none of these, record "OWASP check: not applicable" with the reason.
+
 ## 8. Present the result
 
 Provide:
@@ -116,7 +118,7 @@ Provide:
 1. Outcome
 2. Important implementation decisions
 3. Files or components changed
-4. Verification performed
+4. Verification performed, including the OWASP check result
 5. Remaining risks or follow-up work
 
 Do not describe incomplete or unverified work as completed.
